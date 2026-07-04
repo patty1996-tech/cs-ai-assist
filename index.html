@@ -340,7 +340,7 @@ body::before {
 <script>
 // ==================== CONFIG ====================
 const CONV_STORAGE = "cs_assist_convs";
-const API_KEY = "sk-c96caaa7f32476f9bea553726e865fb";
+const API_KEY = "sk-3dfa603a868241a9aec2e4bcec95d1cc";
 const API_URL = "https://api.deepseek.com/anthropic/v1/messages";
 const MODEL = () => document.getElementById("modelSelect").value;
 
@@ -639,6 +639,22 @@ function stripMarkdown(text) {
 
 // ==================== API CALL ====================
 async function callDeepSeek(msgs) {
+  // Anthropic endpoint needs system prompt separate from messages
+  const systemMsg = msgs.find(m => m.role === "system");
+  const chatMsgs = msgs.filter(m => m.role !== "system");
+
+  // Convert to Anthropic message format (content as text string is fine)
+  const payload = {
+    model: MODEL(),
+    max_tokens: 4096,
+    temperature: 0.7,
+    messages: chatMsgs.map(m => ({
+      role: m.role,
+      content: m.content,
+    })),
+  };
+  if (systemMsg) payload.system = systemMsg.content;
+
   const resp = await fetch(API_URL, {
     method: "POST",
     headers: {
@@ -646,7 +662,7 @@ async function callDeepSeek(msgs) {
       "x-api-key": API_KEY,
       "anthropic-version": "2023-06-01",
     },
-    body: JSON.stringify({ model: MODEL(), max_tokens: 4096, temperature: 0.7, messages: msgs }),
+    body: JSON.stringify(payload),
   });
   if (!resp.ok) {
     const errText = await resp.text();
