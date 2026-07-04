@@ -256,6 +256,33 @@ body::before {
 .send-btn:disabled { opacity: .3; cursor: not-allowed; transform: none; box-shadow: none; }
 .send-btn svg { width: 18px; height: 18px; }
 
+/* Key dialog */
+.key-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.8);
+  z-index: 300; display: none; align-items: center; justify-content: center;
+}
+.key-overlay.active { display: flex; }
+.key-box {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 28px; width: 400px; max-width: 90vw;
+  text-align: center;
+}
+.key-box h3 { color: var(--orange); font-size: 17px; margin-bottom: 8px; }
+.key-box p { color: var(--dim); font-size: 12px; margin-bottom: 18px; }
+.key-box input {
+  width: 100%; background: var(--surface2); color: var(--text);
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: 12px 16px; font-size: 13px;
+  font-family: "Cascadia Code", "Fira Code", monospace; outline: none; margin-bottom: 14px;
+}
+.key-box input:focus { border-color: var(--orange); }
+.key-box button {
+  background: linear-gradient(135deg, #f97316, #ea580c);
+  color: #fff; border: none; border-radius: var(--radius-sm);
+  padding: 10px 32px; font-size: 13px; font-weight: 600; cursor: pointer;
+}
+.key-box button:hover { box-shadow: 0 0 20px var(--orange-glow-strong); }
+
 /* Toast */
 .toast {
   position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
@@ -336,11 +363,20 @@ body::before {
 
 <div class="toast" id="toast"></div>
 
+<div class="key-overlay" id="keyOverlay">
+  <div class="key-box">
+    <h3>Activate CS AI ASSIST</h3>
+    <p>Enter your DeepSeek API key to get started</p>
+    <input type="password" id="keyInput" placeholder="sk-..." onkeydown="if(event.key==='Enter')saveKey()">
+    <button onclick="saveKey()">Activate</button>
+  </div>
+</div>
 
 <script>
 // ==================== CONFIG ====================
 const CONV_STORAGE = "cs_assist_convs";
-const API_KEY = "sk-3dfa603a868241a9aec2e4bcec95d1cc";
+const KEY_STORAGE = "cs_assist_key";
+const getApiKey = () => localStorage.getItem(KEY_STORAGE) || "";
 const API_URL = "https://api.deepseek.com/anthropic/v1/messages";
 const MODEL = () => document.getElementById("modelSelect").value;
 
@@ -639,19 +675,17 @@ function stripMarkdown(text) {
 
 // ==================== API CALL ====================
 async function callDeepSeek(msgs) {
-  // Anthropic endpoint needs system prompt separate from messages
+  const key = getApiKey();
+  if (!key) throw new Error("No API key set.");
+
   const systemMsg = msgs.find(m => m.role === "system");
   const chatMsgs = msgs.filter(m => m.role !== "system");
 
-  // Convert to Anthropic message format (content as text string is fine)
   const payload = {
     model: MODEL(),
     max_tokens: 4096,
     temperature: 0.7,
-    messages: chatMsgs.map(m => ({
-      role: m.role,
-      content: m.content,
-    })),
+    messages: chatMsgs.map(m => ({ role: m.role, content: m.content })),
   };
   if (systemMsg) payload.system = systemMsg.content;
 
@@ -659,7 +693,7 @@ async function callDeepSeek(msgs) {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "x-api-key": API_KEY,
+      "x-api-key": key,
       "anthropic-version": "2023-06-01",
     },
     body: JSON.stringify(payload),
@@ -741,6 +775,21 @@ function showTyping(show) {
   document.getElementById("typing").classList.toggle("active", show);
   scrollToBottom();
 }
+// ==================== API KEY ====================
+function saveKey() {
+  const val = document.getElementById("keyInput").value.trim();
+  if (val.length >= 10) {
+    localStorage.setItem(KEY_STORAGE, val);
+    document.getElementById("keyOverlay").classList.remove("active");
+    toast("Key saved — ready to chat!");
+  }
+}
+function showKeyPrompt() {
+  if (!getApiKey()) {
+    document.getElementById("keyOverlay").classList.add("active");
+  }
+}
+
 function toast(text) {
   const t = document.getElementById("toast");
   t.textContent = text; t.classList.add("show");
@@ -760,6 +809,7 @@ function autoResize(el) {
   }
   renderSidebar();
   renderAllMessages();
+  showKeyPrompt();
 })();
 </script>
 
