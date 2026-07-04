@@ -256,35 +256,6 @@ body::before {
 .send-btn:disabled { opacity: .3; cursor: not-allowed; transform: none; box-shadow: none; }
 .send-btn svg { width: 18px; height: 18px; }
 
-/* Key dialog */
-.key-dialog-overlay {
-  position: fixed; inset: 0; background: rgba(0,0,0,0.7);
-  z-index: 200; display: none; align-items: center; justify-content: center;
-}
-.key-dialog-overlay.active { display: flex; }
-.key-dialog {
-  background: var(--surface); border: 1px solid var(--border);
-  border-radius: var(--radius); padding: 24px; width: 420px; max-width: 90vw;
-}
-.key-dialog h3 { color: var(--orange); font-size: 15px; margin-bottom: 6px; }
-.key-dialog p { color: var(--dim); font-size: 11px; margin-bottom: 14px; }
-.key-dialog a { color: var(--orange); }
-.key-dialog input {
-  width: 100%; background: var(--surface2); color: var(--text);
-  border: 1px solid var(--border); border-radius: var(--radius-sm);
-  padding: 10px 14px; font-size: 12px;
-  font-family: "Cascadia Code", "Fira Code", monospace; outline: none; margin-bottom: 14px;
-}
-.key-dialog input:focus { border-color: var(--orange); }
-.key-dialog-btns { display: flex; gap: 8px; justify-content: flex-end; }
-.key-dialog-btns button {
-  background: var(--surface2); color: var(--text);
-  border: 1px solid var(--border); border-radius: var(--radius-sm);
-  padding: 8px 18px; font-size: 12px; cursor: pointer;
-}
-.key-dialog-btns button.primary { background: var(--orange); color: #fff; border-color: var(--orange); }
-.key-dialog-btns button.primary:hover { background: #ea580c; }
-
 /* Toast */
 .toast {
   position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
@@ -365,27 +336,12 @@ body::before {
 
 <div class="toast" id="toast"></div>
 
-<!-- Key dialog (Ctrl+Shift+K to open) -->
-<div class="key-dialog-overlay" id="keyDialog" onclick="if(event.target===this)hideKeyDialog()">
-  <div class="key-dialog">
-    <h3>DeepSeek API Key</h3>
-    <p>Get your key at <a href="https://platform.deepseek.com/api_keys" target="_blank" rel="noopener">platform.deepseek.com/api_keys</a></p>
-    <input type="password" id="keyInput" placeholder="sk-..." onkeydown="if(event.key==='Enter')saveAndCloseKey()">
-    <div class="key-dialog-btns">
-      <button onclick="saveAndCloseKey()" class="primary">Save</button>
-      <button onclick="hideKeyDialog()">Cancel</button>
-    </div>
-  </div>
-</div>
 
 <script>
 // ==================== CONFIG ====================
 const CONV_STORAGE = "cs_assist_convs";
-const KEY_STORAGE = "cs_assist_key";
-const API_URL = "https://api.deepseek.com/anthropic/v1/messages";
+const API_URL = "https://script.google.com/macros/s/AKfycbyRBHSGJV9iY3gLLMxu2NuRBo3ixESQJmL1cMzr1nRoAq1lBbjIWVSIWLAVDb7sNUXv/exec";
 const MODEL = () => document.getElementById("modelSelect").value;
-const getApiKey = () => localStorage.getItem(KEY_STORAGE) || "sk-c96caaa7f32476f9bea553726e865fb";
-const saveApiKey = (k) => localStorage.setItem(KEY_STORAGE, k);
 
 // ==================== SYSTEM PROMPT ====================
 const SYSTEM_PROMPT = `You are CS AI ASSIST — a powerful, general-purpose AI assistant for the Customer Service Department. You are smart, versatile, and can help with ANY task just like ChatGPT.
@@ -682,26 +638,19 @@ function stripMarkdown(text) {
 
 // ==================== API CALL ====================
 async function callDeepSeek(msgs) {
-  const key = getApiKey();
-  if (!key || key.length < 10) {
-    throw new Error("API key not set. Press Ctrl+Shift+K to add your DeepSeek API key.");
-  }
   const resp = await fetch(API_URL, {
     method: "POST",
-    headers: { "Content-Type": "application/json", "x-api-key": key, "anthropic-version": "2023-06-01" },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ model: MODEL(), max_tokens: 4096, temperature: 0.7, messages: msgs }),
   });
   if (!resp.ok) {
-    const errText = await resp.text();
-    let msg = errText;
-    try { msg = JSON.parse(errText).error?.message || errText; } catch (_) {}
-    if (resp.status === 401) msg = "Invalid API key. Press Ctrl+Shift+K to update it.";
-    throw new Error(msg.substring(0, 400));
+    throw new Error("Server error (HTTP " + resp.status + "). Try again.");
   }
   const data = await resp.json();
-  if (data.content && Array.isArray(data.content)) return data.content.map(b => b.text || "").join("");
-  if (data.choices && data.choices[0]) return data.choices[0].message.content;
-  return JSON.stringify(data);
+  if (!data.ok) {
+    throw new Error(data.error || "Unknown error");
+  }
+  return data.reply;
 }
 
 // ==================== MESSAGE HANDLING ====================
@@ -777,27 +726,6 @@ function toast(text) {
 function autoResize(el) {
   el.style.height = "auto";
   el.style.height = Math.min(el.scrollHeight, 160) + "px";
-}
-
-// ==================== API KEY (Ctrl+Shift+K) ====================
-document.addEventListener("keydown", (e) => {
-  if (e.ctrlKey && e.shiftKey && e.key === "K") {
-    e.preventDefault();
-    showKeyDialog();
-  }
-});
-function showKeyDialog() {
-  document.getElementById("keyDialog").classList.add("active");
-  document.getElementById("keyInput").value = getApiKey();
-  setTimeout(() => document.getElementById("keyInput").focus(), 100);
-}
-function hideKeyDialog() {
-  document.getElementById("keyDialog").classList.remove("active");
-}
-function saveAndCloseKey() {
-  const val = document.getElementById("keyInput").value.trim();
-  if (val && val.length >= 10) { saveApiKey(val); toast("API key saved"); }
-  hideKeyDialog();
 }
 
 // ==================== INIT ====================
