@@ -230,6 +230,41 @@ body::before {
 .typing span:nth-child(3) { animation-delay: .3s; }
 @keyframes bounce { 0%,60%,100% { transform: translateY(0); } 30% { transform: translateY(-8px); background: var(--orange); } }
 
+/* Translate bar */
+.translate-bar {
+  background: var(--surface); border-top: 1px solid var(--border);
+  padding: 10px 24px; display: flex; align-items: center; gap: 8px;
+  flex-shrink: 0; flex-wrap: wrap;
+}
+.translate-bar .tl-label {
+  font-size: 11px; color: var(--orange); font-weight: 600;
+  text-transform: uppercase; letter-spacing: .5px; white-space: nowrap;
+}
+.translate-bar select {
+  background: var(--surface2); color: var(--text);
+  border: 1px solid var(--border); border-radius: 6px;
+  padding: 6px 8px; font-size: 11px; cursor: pointer; outline: none;
+  max-width: 130px;
+}
+.translate-bar select:focus { border-color: var(--orange); }
+.translate-bar .tl-arrow { color: var(--dim); font-size: 11px; white-space: nowrap; }
+.translate-bar textarea {
+  flex: 1; min-width: 180px;
+  background: var(--surface2); color: var(--text);
+  border: 1px solid var(--border); border-radius: 6px;
+  padding: 8px 12px; font-size: 12px; font-family: inherit;
+  resize: none; min-height: 36px; max-height: 80px; outline: none;
+}
+.translate-bar textarea:focus { border-color: var(--orange); }
+.tl-btn {
+  background: linear-gradient(135deg, #f97316, #ea580c);
+  color: #fff; border: none; border-radius: 6px;
+  padding: 8px 16px; font-size: 12px; font-weight: 600; cursor: pointer;
+  white-space: nowrap;
+}
+.tl-btn:hover { box-shadow: 0 0 15px var(--orange-glow-strong); }
+.tl-btn:disabled { opacity: .3; cursor: not-allowed; }
+
 /* Input */
 .input-area {
   background: var(--surface); border-top: 1px solid var(--border);
@@ -348,6 +383,52 @@ body::before {
     <div class="typing" id="typing"><span></span><span></span><span></span></div>
   </div>
 
+  <div class="translate-bar" id="translateBar">
+    <span class="tl-label">Translate</span>
+    <select id="tlFrom">
+      <option value="auto">Auto-detect</option>
+      <option value="English">English</option>
+      <option value="Filipino">Filipino</option>
+      <option value="Indonesian">Indonesian</option>
+      <option value="Hindi">Hindi</option>
+      <option value="Bengali">Bengali</option>
+      <option value="Vietnamese">Vietnamese</option>
+      <option value="Thai">Thai</option>
+      <option value="Chinese">Chinese</option>
+      <option value="Japanese">Japanese</option>
+      <option value="Korean">Korean</option>
+      <option value="Spanish">Spanish</option>
+      <option value="Portuguese">Portuguese</option>
+      <option value="Russian">Russian</option>
+      <option value="Turkish">Turkish</option>
+      <option value="Arabic">Arabic</option>
+      <option value="French">French</option>
+      <option value="Burmese">Burmese</option>
+    </select>
+    <span class="tl-arrow">to</span>
+    <select id="tlTo">
+      <option value="English">English</option>
+      <option value="Filipino">Filipino</option>
+      <option value="Indonesian">Indonesian</option>
+      <option value="Hindi">Hindi</option>
+      <option value="Bengali">Bengali</option>
+      <option value="Vietnamese">Vietnamese</option>
+      <option value="Thai">Thai</option>
+      <option value="Chinese">Chinese</option>
+      <option value="Japanese">Japanese</option>
+      <option value="Korean">Korean</option>
+      <option value="Spanish">Spanish</option>
+      <option value="Portuguese">Portuguese</option>
+      <option value="Russian">Russian</option>
+      <option value="Turkish">Turkish</option>
+      <option value="Arabic">Arabic</option>
+      <option value="French">French</option>
+      <option value="Burmese">Burmese</option>
+    </select>
+    <textarea id="tlInput" rows="1" placeholder="Paste text to translate..." onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();doTranslate()}" oninput="autoResize(this)"></textarea>
+    <button class="tl-btn" onclick="doTranslate()">Translate</button>
+  </div>
+
   <div class="input-area">
     <div class="input-wrapper">
       <textarea id="userInput" rows="1" placeholder="Message CS AI ASSIST..." onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
@@ -393,7 +474,7 @@ const SYSTEM_PROMPT = `You are CS AI ASSIST — a powerful, general-purpose AI a
 - **Explain concepts** — break down complex topics, train new team members
 - **Brainstorm ideas** — process improvements, automation ideas, workflow optimization
 - **Summarize conversations** — digest long chat threads, extract key points
-- **Create charts & graphs** — use QuickChart.io URLs for any chart. Format: `![chart](https://quickchart.io/chart?c={type:'bar',data:{labels:['A','B'],datasets:[{label:'Data',data:[10,20]}]}})` — URL-encode the JSON. For pie, line, bar, doughnut charts always generate a QuickChart URL and embed as image.
+- **Create charts & graphs** — use QuickChart.io URLs for any chart. Format: ![chart](https://quickchart.io/chart?c=...) — URL-encode the JSON. For pie, line, bar, doughnut charts always generate a QuickChart URL and embed as image.
 - **Create graphics** — write SVG code blocks for icons, badges, diagrams that render directly in the browser
 
 ## CS SYSTEMS YOU KNOW
@@ -815,6 +896,26 @@ async function sendMessage() {
   showTyping(false);
   btn.disabled = false;
   input.focus();
+}
+
+async function doTranslate() {
+  const input = document.getElementById("tlInput");
+  const btn = document.querySelector(".tl-btn");
+  const text = input.value.trim();
+  if (!text) return;
+
+  const from = document.getElementById("tlFrom").value;
+  const to = document.getElementById("tlTo").value;
+  const fromLabel = from === "auto" ? "" : ` from ${from}`;
+  const prompt = `Translate the following text${fromLabel} to ${to}. Return ONLY the translation, no explanations:\n\n${text}`;
+
+  input.value = "";
+  btn.disabled = true;
+
+  // Use the main send flow but with our prompt
+  document.getElementById("userInput").value = prompt;
+  await sendMessage();
+  btn.disabled = false;
 }
 
 function handleKey(event) {
