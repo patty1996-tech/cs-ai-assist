@@ -1020,7 +1020,12 @@ async function extractText() {
       body: JSON.stringify(payload),
     });
 
-    if (!resp.ok) throw new Error("OCR failed");
+    if (!resp.ok) {
+      const errText = await resp.text();
+      let msg = errText;
+      try { msg = JSON.parse(errText).error?.message || errText; } catch(_){}
+      throw new Error("OCR failed: " + msg.substring(0, 200));
+    }
     const data = await resp.json();
     const extracted = data.candidates?.[0]?.content?.parts?.[0]?.text || "No text found";
 
