@@ -393,6 +393,8 @@ const SYSTEM_PROMPT = `You are CS AI ASSIST — a powerful, general-purpose AI a
 - **Explain concepts** — break down complex topics, train new team members
 - **Brainstorm ideas** — process improvements, automation ideas, workflow optimization
 - **Summarize conversations** — digest long chat threads, extract key points
+- **Create charts & graphs** — use QuickChart.io URLs for any chart. Format: `![chart](https://quickchart.io/chart?c={type:'bar',data:{labels:['A','B'],datasets:[{label:'Data',data:[10,20]}]}})` — URL-encode the JSON. For pie, line, bar, doughnut charts always generate a QuickChart URL and embed as image.
+- **Create graphics** — write SVG code blocks for icons, badges, diagrams that render directly in the browser
 
 ## CS SYSTEMS YOU KNOW
 
@@ -632,6 +634,7 @@ function appendMessageEl(role, content) {
 // ==================== MARKDOWN ====================
 function renderMarkdown(text) {
   let t = esc(text);
+  t = t.replace(/```svg\n?([\s\S]*?)```/g, (_, code) => code.trim());
   t = t.replace(/```(\w*)\n?([\s\S]*?)```/g, (_, lang, code) => `<pre><code>${code.trim()}</code></pre>`);
   t = t.replace(/`([^`]+)`/g, "<code>$1</code>");
   t = t.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
@@ -640,6 +643,9 @@ function renderMarkdown(text) {
   t = t.replace(/^### (.+)$/gm, "<h3>$1</h3>");
   t = t.replace(/^## (.+)$/gm, "<h2>$1</h2>");
   t = t.replace(/^# (.+)$/gm, "<h1>$1</h1>");
+  // Images
+  t = t.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" style="max-width:100%;border-radius:8px;margin:8px 0">');
+  // Blockquote
   t = t.replace(/^&gt; (.+)$/gm, "<blockquote>$1</blockquote>");
   t = t.replace(/^---$/gm, "<hr>");
   t = t.replace(/((?:^\|.+\|\n?)+)/gm, (match) => {
