@@ -694,48 +694,69 @@ async function callDeepSeek(msgs, onToken) {
   }
 
   const model = MODEL();
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse&key=${key}`;
+  // Try streaming first
+  const streamUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse`;
 
-  const resp = await fetch(url, {
+  try {
+    const resp = await fetch(streamUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-goog-api-key": key,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (resp.ok) {
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+      let fullText = "";
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          try {
+            const data = JSON.parse(line.slice(6));
+            const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (text) { fullText += text; onToken(fullText); }
+          } catch (_) {}
+        }
+      }
+      return fullText;
+    }
+
+    // If streaming fails (e.g. 400), fall back to non-streaming
+    if (resp.status !== 400) throw new Error(`HTTP ${resp.status}`);
+  } catch (_) {}
+
+  // Fallback: non-streaming
+  const url2 = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+  const resp2 = await fetch(url2, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      "x-goog-api-key": key,
+    },
     body: JSON.stringify(payload),
   });
 
-  if (!resp.ok) {
-    const errText = await resp.text();
+  if (!resp2.ok) {
+    const errText = await resp2.text();
     let msg = errText;
     try { msg = JSON.parse(errText).error?.message || errText; } catch (_) {}
     throw new Error(msg.substring(0, 300));
   }
 
-  // Stream SSE response
-  const reader = resp.body.getReader();
-  const decoder = new TextDecoder();
-  let fullText = "";
-  let buffer = "";
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split("\n");
-    buffer = lines.pop() || "";
-
-    for (const line of lines) {
-      if (!line.startsWith("data: ")) continue;
-      try {
-        const data = JSON.parse(line.slice(6));
-        const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (text) {
-          fullText += text;
-          onToken(fullText);
-        }
-      } catch (_) {}
-    }
-  }
-  return fullText;
+  const data = await resp2.json();
+  const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+  onToken(text);
+  return text;
 }
 
 // ==================== MESSAGE HANDLING ====================
