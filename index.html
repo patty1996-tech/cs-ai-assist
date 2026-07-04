@@ -1,0 +1,823 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CS AI ASSIST</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%23f97316'/><text x='32' y='44' text-anchor='middle' font-family='Segoe UI,system-ui,sans-serif' font-size='36' font-weight='800' fill='white'>CS</text></svg>">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #0a0a0a;
+  --surface: #141414;
+  --surface2: #1a1a1a;
+  --border: #2a2a2a;
+  --text: #eee;
+  --muted: #999;
+  --dim: #666;
+  --orange: #f97316;
+  --orange-hover: #fb923c;
+  --orange-glow: rgba(249,115,22,0.15);
+  --orange-glow-strong: rgba(249,115,22,0.3);
+  --radius: 12px;
+  --radius-sm: 8px;
+  --sidebar-w: 280px;
+}
+
+body {
+  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  height: 100vh;
+  display: flex;
+  overflow: hidden;
+}
+
+body::before {
+  content: "";
+  position: fixed; inset: 0;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.015) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.015) 1px, transparent 1px);
+  background-size: 60px 60px;
+  pointer-events: none; z-index: 0;
+}
+
+/* Sidebar */
+.sidebar {
+  position: relative; z-index: 2;
+  width: var(--sidebar-w);
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  transition: margin-left .25s ease, opacity .25s ease;
+}
+.sidebar.collapsed { margin-left: calc(var(--sidebar-w) * -1); opacity: 0; pointer-events: none; }
+.sidebar-header {
+  padding: 16px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.sidebar-header h3 { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
+.sidebar-header button {
+  background: var(--surface2); color: var(--text);
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: 4px 10px; font-size: 10px; cursor: pointer;
+}
+.sidebar-header button:hover { border-color: var(--orange); color: var(--orange); }
+.sidebar-list {
+  flex: 1; overflow-y: auto; padding: 8px;
+}
+.sidebar-list::-webkit-scrollbar { width: 4px; }
+.sidebar-list::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 2px; }
+.conv-item {
+  padding: 10px 12px; border-radius: var(--radius-sm);
+  cursor: pointer; margin-bottom: 2px;
+  display: flex; align-items: center; justify-content: space-between;
+  transition: background .15s;
+}
+.conv-item:hover { background: var(--surface2); }
+.conv-item.active { background: rgba(249,115,22,0.08); border: 1px solid rgba(249,115,22,0.2); }
+.conv-item .conv-info { overflow: hidden; flex: 1; }
+.conv-item .conv-title { font-size: 12px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.conv-item .conv-date { font-size: 9px; color: var(--dim); margin-top: 2px; }
+.conv-item .conv-del {
+  opacity: 0; background: none; border: none; color: var(--dim);
+  cursor: pointer; font-size: 14px; padding: 2px 6px; border-radius: 4px;
+  transition: all .15s;
+}
+.conv-item:hover .conv-del { opacity: 1; }
+.conv-item .conv-del:hover { color: #ef4444; background: rgba(239,68,68,0.1); }
+.sidebar-empty { text-align: center; padding: 30px 16px; color: var(--dim); font-size: 11px; }
+
+/* Main area */
+.main {
+  position: relative; z-index: 1;
+  flex: 1; display: flex; flex-direction: column;
+  min-width: 0;
+}
+
+/* Header */
+.header {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 10px 20px;
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; flex-shrink: 0;
+}
+.header-left { display: flex; align-items: center; gap: 10px; }
+.hamburger {
+  background: none; border: none; color: var(--muted); cursor: pointer;
+  padding: 4px; border-radius: 4px; display: flex; align-items: center;
+}
+.hamburger:hover { color: #fff; }
+.hamburger svg { width: 18px; height: 18px; }
+.logo {
+  width: 32px; height: 32px;
+  background: linear-gradient(135deg, #f97316, #ea580c);
+  border-radius: 7px; display: flex; align-items: center; justify-content: center;
+  font-size: 14px; font-weight: 800; color: #fff;
+}
+.header-left h1 { font-size: 16px; font-weight: 700; color: #fff; letter-spacing: -0.3px; }
+.header-left h1 span { color: var(--orange); }
+.header-dept {
+  font-size: 9px; color: var(--dim); letter-spacing: .5px;
+  border-left: 1px solid var(--border); padding-left: 10px;
+}
+.header-controls { display: flex; align-items: center; gap: 8px; }
+.header-controls select {
+  background: var(--surface2); color: var(--text);
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: 5px 10px; font-size: 11px; cursor: pointer; outline: none;
+}
+.header-controls select:focus { border-color: var(--orange); }
+.header-controls button {
+  background: var(--surface2); color: var(--muted);
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: 5px 12px; font-size: 11px; cursor: pointer; transition: all .15s;
+}
+.header-controls button:hover { color: #fff; border-color: #555; }
+
+/* Chat */
+.chat-container {
+  flex: 1; overflow-y: auto; padding: 20px 24px;
+  display: flex; flex-direction: column; gap: 16px; scroll-behavior: smooth;
+}
+.chat-container::-webkit-scrollbar { width: 5px; }
+.chat-container::-webkit-scrollbar-track { background: transparent; }
+.chat-container::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 3px; }
+
+.empty-state {
+  flex: 1; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; text-align: center; padding: 40px 20px;
+}
+.empty-state .logo-large {
+  width: 64px; height: 64px;
+  background: linear-gradient(135deg, #f97316, #ea580c);
+  border-radius: 16px; display: flex; align-items: center; justify-content: center;
+  font-size: 30px; font-weight: 800; color: #fff;
+  margin-bottom: 20px; box-shadow: 0 0 40px var(--orange-glow);
+}
+.empty-state h2 { font-size: 24px; font-weight: 700; color: #fff; margin-bottom: 6px; letter-spacing: -0.5px; }
+.empty-state h2 span { color: var(--orange); }
+.empty-state p { font-size: 13px; color: var(--muted); }
+
+/* Messages */
+.msg {
+  max-width: 78%; padding: 14px 18px; border-radius: var(--radius);
+  font-size: 13.5px; line-height: 1.6;
+  animation: fadeIn .25s ease; word-wrap: break-word; overflow-wrap: break-word;
+}
+@keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+.msg.user {
+  align-self: flex-end;
+  background: linear-gradient(135deg, #f97316, #ea580c);
+  color: #fff; border-bottom-right-radius: 4px;
+}
+.msg.assistant {
+  align-self: flex-start;
+  background: var(--surface); border: 1px solid var(--border);
+  border-bottom-left-radius: 4px; color: #ddd;
+}
+.msg.assistant h1, .msg.assistant h2, .msg.assistant h3 { color: var(--orange); margin: 8px 0 4px; font-size: 15px; }
+.msg.assistant pre {
+  background: #0a0a0a; padding: 12px 16px; border-radius: var(--radius-sm);
+  overflow-x: auto; font-size: 11.5px; margin: 10px 0; border: 1px solid var(--border);
+  font-family: "Cascadia Code", "Fira Code", "JetBrains Mono", Consolas, monospace;
+}
+.msg.assistant code {
+  background: #0a0a0a; padding: 2px 6px; border-radius: 4px; font-size: 11.5px;
+  font-family: "Cascadia Code", "Fira Code", "JetBrains Mono", Consolas, monospace; color: var(--orange);
+}
+.msg.assistant ul, .msg.assistant ol { padding-left: 20px; margin: 6px 0; }
+.msg.assistant li { margin: 3px 0; }
+.msg.assistant strong { color: #fff; }
+.msg.assistant em { color: var(--muted); }
+.msg.assistant blockquote { border-left: 3px solid var(--orange); padding-left: 14px; margin: 8px 0; color: var(--muted); }
+.msg.assistant table { width: 100%; border-collapse: collapse; margin: 8px 0; font-size: 12px; }
+.msg.assistant th { background: var(--orange-glow); color: var(--orange); padding: 8px 12px; text-align: left; font-weight: 600; border-bottom: 1px solid var(--orange-glow-strong); }
+.msg.assistant td { padding: 6px 12px; border-bottom: 1px solid var(--border); }
+.msg.assistant a { color: var(--orange); }
+.msg-actions {
+  display: flex; gap: 6px; margin-top: 8px;
+  opacity: 0; transition: opacity .15s;
+}
+.msg:hover .msg-actions { opacity: 1; }
+.msg-actions button {
+  background: transparent; color: var(--dim); border: none;
+  font-size: 10px; cursor: pointer; padding: 3px 8px; border-radius: 4px; transition: all .15s;
+}
+.msg-actions button:hover { color: #fff; background: rgba(255,255,255,0.06); }
+.msg-meta { font-size: 10px; color: var(--dim); margin-bottom: 4px; display: flex; align-items: center; gap: 6px; }
+.msg.user .msg-meta { color: rgba(255,255,255,0.5); }
+
+/* Typing */
+.typing {
+  align-self: flex-start; background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 14px 18px; display: none; gap: 5px; align-items: center;
+}
+.typing.active { display: flex; }
+.typing span {
+  width: 7px; height: 7px; background: #555; border-radius: 50%; animation: bounce 1.2s infinite;
+}
+.typing span:nth-child(1) { animation-delay: 0s; }
+.typing span:nth-child(2) { animation-delay: .15s; }
+.typing span:nth-child(3) { animation-delay: .3s; }
+@keyframes bounce { 0%,60%,100% { transform: translateY(0); } 30% { transform: translateY(-8px); background: var(--orange); } }
+
+/* Input */
+.input-area {
+  background: var(--surface); border-top: 1px solid var(--border);
+  padding: 14px 24px; display: flex; gap: 10px; align-items: flex-end; flex-shrink: 0;
+}
+.input-wrapper { flex: 1; position: relative; }
+.input-area textarea {
+  width: 100%; background: var(--surface2); color: var(--text);
+  border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 12px 16px; font-size: 13.5px; font-family: inherit;
+  resize: none; min-height: 48px; max-height: 160px; outline: none;
+  transition: border-color .2s;
+}
+.input-area textarea:focus { border-color: var(--orange); box-shadow: 0 0 0 3px var(--orange-glow); }
+.input-area textarea::placeholder { color: #555; }
+.send-btn {
+  width: 44px; height: 44px;
+  background: linear-gradient(135deg, #f97316, #ea580c);
+  color: #fff; border: none; border-radius: var(--radius);
+  cursor: pointer; flex-shrink: 0; transition: all .15s;
+  display: flex; align-items: center; justify-content: center;
+}
+.send-btn:hover { box-shadow: 0 0 20px var(--orange-glow-strong); transform: scale(1.03); }
+.send-btn:disabled { opacity: .3; cursor: not-allowed; transform: none; box-shadow: none; }
+.send-btn svg { width: 18px; height: 18px; }
+
+/* Key dialog */
+.key-dialog-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+  z-index: 200; display: none; align-items: center; justify-content: center;
+}
+.key-dialog-overlay.active { display: flex; }
+.key-dialog {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 24px; width: 420px; max-width: 90vw;
+}
+.key-dialog h3 { color: var(--orange); font-size: 15px; margin-bottom: 6px; }
+.key-dialog p { color: var(--dim); font-size: 11px; margin-bottom: 14px; }
+.key-dialog a { color: var(--orange); }
+.key-dialog input {
+  width: 100%; background: var(--surface2); color: var(--text);
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: 10px 14px; font-size: 12px;
+  font-family: "Cascadia Code", "Fira Code", monospace; outline: none; margin-bottom: 14px;
+}
+.key-dialog input:focus { border-color: var(--orange); }
+.key-dialog-btns { display: flex; gap: 8px; justify-content: flex-end; }
+.key-dialog-btns button {
+  background: var(--surface2); color: var(--text);
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: 8px 18px; font-size: 12px; cursor: pointer;
+}
+.key-dialog-btns button.primary { background: var(--orange); color: #fff; border-color: var(--orange); }
+.key-dialog-btns button.primary:hover { background: #ea580c; }
+
+/* Toast */
+.toast {
+  position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+  background: #1a1a1a; border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 10px 20px;
+  font-size: 12px; color: #fff; z-index: 100;
+  opacity: 0; transition: opacity .2s; pointer-events: none;
+}
+.toast.show { opacity: 1; }
+
+/* Mobile */
+@media (max-width: 768px) {
+  .sidebar { position: fixed; left: 0; top: 0; bottom: 0; z-index: 50; }
+  .sidebar.collapsed { margin-left: calc(var(--sidebar-w) * -1); opacity: 0; pointer-events: none; }
+  .header-dept { display: none; }
+  .msg { max-width: 92%; }
+}
+</style>
+</head>
+<body>
+
+<!-- Sidebar -->
+<div class="sidebar collapsed" id="sidebar">
+  <div class="sidebar-header">
+    <h3>History</h3>
+    <button onclick="newConversation()">+ New</button>
+  </div>
+  <div class="sidebar-list" id="sidebarList">
+    <div class="sidebar-empty">No conversations yet</div>
+  </div>
+</div>
+
+<!-- Main -->
+<div class="main">
+  <div class="header">
+    <div class="header-left">
+      <button class="hamburger" onclick="toggleSidebar()" title="History">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <line x1="3" y1="6" x2="21" y2="6"></line>
+          <line x1="3" y1="12" x2="21" y2="12"></line>
+          <line x1="3" y1="18" x2="21" y2="18"></line>
+        </svg>
+      </button>
+      <div class="logo">CS</div>
+      <h1>CS <span>AI ASSIST</span></h1>
+      <span class="header-dept">Customer Service Department</span>
+    </div>
+    <div class="header-controls">
+      <select id="modelSelect" title="Model">
+        <option value="deepseek-v4-pro">Pro</option>
+        <option value="deepseek-v4-flash">Flash</option>
+      </select>
+      <button onclick="exportChat()" title="Export">Export</button>
+    </div>
+  </div>
+
+  <div class="chat-container" id="chatContainer">
+    <div class="empty-state" id="emptyState">
+      <div class="logo-large">CS</div>
+      <h2>CS <span>AI ASSIST</span></h2>
+      <p>Customer Service Department</p>
+    </div>
+    <div class="typing" id="typing"><span></span><span></span><span></span></div>
+  </div>
+
+  <div class="input-area">
+    <div class="input-wrapper">
+      <textarea id="userInput" rows="1" placeholder="Message CS AI ASSIST..." onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
+    </div>
+    <button class="send-btn" id="sendBtn" onclick="sendMessage()" title="Send">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="22" y1="2" x2="11" y2="13"></line>
+        <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+      </svg>
+    </button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- Key dialog (Ctrl+Shift+K to open) -->
+<div class="key-dialog-overlay" id="keyDialog" onclick="if(event.target===this)hideKeyDialog()">
+  <div class="key-dialog">
+    <h3>DeepSeek API Key</h3>
+    <p>Get your key at <a href="https://platform.deepseek.com/api_keys" target="_blank" rel="noopener">platform.deepseek.com/api_keys</a></p>
+    <input type="password" id="keyInput" placeholder="sk-..." onkeydown="if(event.key==='Enter')saveAndCloseKey()">
+    <div class="key-dialog-btns">
+      <button onclick="saveAndCloseKey()" class="primary">Save</button>
+      <button onclick="hideKeyDialog()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ==================== CONFIG ====================
+const CONV_STORAGE = "cs_assist_convs";
+const KEY_STORAGE = "cs_assist_key";
+const API_URL = "https://api.deepseek.com/anthropic/v1/messages";
+const MODEL = () => document.getElementById("modelSelect").value;
+const getApiKey = () => localStorage.getItem(KEY_STORAGE) || "";
+const saveApiKey = (k) => localStorage.setItem(KEY_STORAGE, k);
+
+// ==================== SYSTEM PROMPT ====================
+const SYSTEM_PROMPT = `You are CS AI ASSIST — a powerful, general-purpose AI assistant for the Customer Service Department. You are smart, versatile, and can help with ANY task just like ChatGPT.
+
+## YOUR CAPABILITIES
+- **Create reports** — daily/weekly summaries, performance reports, incident reports, agent productivity reports
+- **Generate content** — emails, announcements, training materials, documentation, SOPs, response scripts
+- **Translate text** — between English, Filipino, Indonesian, Hindi, Bengali, Vietnamese, Thai, Turkish, Russian, Portuguese, Spanish, Malay, Chinese, Japanese, and more
+- **Analyze data** — spot trends, summarize findings, compare metrics, identify issues
+- **Write & debug code** — Python, JavaScript/Google Apps Script, HTML/CSS, SQL, bash/PowerShell
+- **Troubleshoot systems** — diagnose issues across all CS platforms
+- **Explain concepts** — break down complex topics, train new team members
+- **Brainstorm ideas** — process improvements, automation ideas, workflow optimization
+- **Summarize conversations** — digest long chat threads, extract key points
+
+## CS SYSTEMS YOU KNOW
+
+### CS WorkPulse Dashboard
+- WFH agent monitoring: screenshots, URLs, active windows, GPS, warnings
+- Google Apps Script web app
+- Sheet ID: 1HvUKRZXGPxWhz6T4gfV8mRpgGzClk0io03OtGmcOHRE
+- Script ID: 1DIQR8LVIUPvXdJ9qbaONNL_VVC9sA_xIgMu2czt_WJaQAXXZqXlTMZ8S
+- Dashboard: https://script.google.com/macros/s/AKfycbxfeE2YjIqMy2gLf7pTm4vj4x38zDON2CKuxe_NM6qLC_pwV3pE6VSUE4TrwzuyUYL6/exec
+- Admin: admin/admin123, QC: qc/qc2024
+- Cache: overview 180s, detail 30s, 3000 row limit, auto-cleanup 6 PM PHT, timezone Asia/Manila (GMT+8)
+- Agent: PyInstaller .exe from CS_WorkPulse.py
+
+### CS Health Monitor
+- LiveChat spike detection + incident.io status monitoring
+- Telegram alerts via @CSSupportPulsebot
+- Script ID: 1wgRq2ug0Nc9vgzILDO31aHo9HQrumUpHb1RhKOUO7JO9cGalOzGrQTlG
+- LiveChat PAT: b6dd6ff1-4e45-420d-8171-a514a5727c32, 13 agent groups
+- CRITICAL: editing script DELETES triggers — must re-run setupMonitor()
+- SPIKE_THRESHOLD: 1.5, SPIKE_MIN_VOLUME: 4, cooldown: 30min, baseline: 3hrs
+
+### CS Portal (Talent Nexus)
+- Payslip & experience letter PDF generator with email delivery
+- Sheet ID: 1n6fDjRCi17yp0KQ9lP29ARtqJVg0V_YgV_l9m4FjiCw
+- Script ID: 17zvZ-ozN6KUXE3VtRrfmk0RJUTPUMI-aNFVmWyNN4xmdHti81ovWiaO5
+- URL: bit.ly/TNPortal, MailApp: 100/day, tokens expire 7 days
+
+### CS WorkPulse Redirect
+- bit.ly/CSWorkPulse → dashboard, Script ID: 1Sb9TNkZeJnsg7939EEpFCqUJBGRI_86i7TkNhIC5LDrVs0uwQpWTNJuU
+
+### Google Apps Script Quotas
+- 6hr execution/day, 20K URL Fetch, 100 emails, 50K properties, 20 triggers max, resets midnight PST (3 PM PHT)
+
+## COMMON FIXES
+- Dashboard blank → Redeploy from Apps Script editor
+- Agents offline → Check DASHBOARD_WEBHOOK_URL matches deployment URL
+- Screenshots missing → Check Drive "AgentScreenshots" folder + quota
+- Login rejected → UserAccounts col C must be Plain Text (not Number)
+- Dashboard slow → ActivityLog >40K rows, auto-cleanup at 6 PM
+- Monitor silent → Run setupMonitor() (triggers deleted on edits)
+- False spikes → stopMonitor() then setupMonitor() (60min baseline rebuild)
+- LiveChat API fails → PAT expired, regenerate in Developer Console
+- Portal not generating → Redeploy + update APPS_SCRIPT_URL
+- Email not received → MailApp quota, check spam, verify scopes
+- Token expired → Normal (7 days), generate new document
+- Agent .exe blocked → Windows Defender, restore + add exclusion + rebuild
+- Agent not reporting → DASHBOARD_WEBHOOK_URL mismatch, update + rebuild .exe
+
+## RESPONSE STYLE
+- Be helpful, thorough, and professional — like ChatGPT
+- Use formatting: headings, lists, tables, code blocks when appropriate
+- For troubleshooting: step-by-step numbered instructions
+- For reports: structured with clear sections
+- Be direct, no fluff, but complete
+- If asked something outside CS systems, still help — you're a general AI`;
+
+// ==================== CONVERSATION STORE ====================
+function loadConvs() {
+  try { return JSON.parse(localStorage.getItem(CONV_STORAGE)) || []; }
+  catch (_) { return []; }
+}
+function saveConvs(convs) {
+  try { localStorage.setItem(CONV_STORAGE, JSON.stringify(convs)); }
+  catch (_) { toast("Storage full — export and clear old conversations"); }
+}
+
+function createConv(model) {
+  return {
+    id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+    title: "New conversation",
+    model: model || MODEL(),
+    messages: [{ role: "system", content: SYSTEM_PROMPT }],
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+// ==================== STATE ====================
+let conversations = loadConvs();
+let currentConvId = null;
+let messages = []; // reference to current conv's messages array
+
+function currentConv() {
+  return conversations.find(c => c.id === currentConvId);
+}
+function saveState() {
+  saveConvs(conversations);
+  renderSidebar();
+}
+
+// ==================== SIDEBAR ====================
+function renderSidebar() {
+  const list = document.getElementById("sidebarList");
+  const sorted = [...conversations].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+
+  if (sorted.length === 0) {
+    list.innerHTML = '<div class="sidebar-empty">No conversations yet</div>';
+    return;
+  }
+
+  list.innerHTML = sorted.map(c => {
+    const cls = c.id === currentConvId ? "conv-item active" : "conv-item";
+    const date = new Date(c.updatedAt);
+    const dateStr = isToday(date) ? date.toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})
+      : date.toLocaleDateString([], {month:"short",day:"numeric"});
+    return `
+      <div class="${cls}" onclick="switchConversation('${c.id}')">
+        <div class="conv-info">
+          <div class="conv-title">${esc(c.title)}</div>
+          <div class="conv-date">${dateStr}</div>
+        </div>
+        <button class="conv-del" onclick="event.stopPropagation();deleteConversation('${c.id}')" title="Delete">&times;</button>
+      </div>`;
+  }).join("");
+}
+
+function isToday(d) {
+  const now = new Date();
+  return d.getDate() === now.getDate() &&
+    d.getMonth() === now.getMonth() &&
+    d.getFullYear() === now.getFullYear();
+}
+function esc(s) { const d = document.createElement("div"); d.textContent = s; return d.innerHTML; }
+function toggleSidebar() { document.getElementById("sidebar").classList.toggle("collapsed"); }
+
+// ==================== CONVERSATION MANAGEMENT ====================
+function switchConversation(id) {
+  currentConvId = id;
+  const conv = currentConv();
+  if (!conv) return;
+  messages = conv.messages;
+  document.getElementById("modelSelect").value = conv.model;
+  renderAllMessages();
+  renderSidebar();
+}
+
+function newConversation() {
+  const conv = createConv();
+  conversations.push(conv);
+  currentConvId = conv.id;
+  messages = conv.messages;
+  document.getElementById("modelSelect").value = conv.model;
+  renderAllMessages();
+  saveState();
+}
+
+function deleteConversation(id) {
+  conversations = conversations.filter(c => c.id !== id);
+  if (currentConvId === id) {
+    if (conversations.length > 0) {
+      switchConversation(conversations[conversations.length - 1].id);
+    } else {
+      currentConvId = null;
+      messages = [];
+      renderAllMessages();
+    }
+  }
+  saveState();
+}
+
+function autoTitle() {
+  const conv = currentConv();
+  if (!conv || conv.title !== "New conversation") return;
+  const firstUser = conv.messages.find(m => m.role === "user");
+  if (firstUser) {
+    conv.title = firstUser.content.substring(0, 60) + (firstUser.content.length > 60 ? "..." : "");
+  }
+}
+
+// ==================== RENDER MESSAGES ====================
+function renderAllMessages() {
+  const container = document.getElementById("chatContainer");
+  const conv = currentConv();
+  container.querySelectorAll(".msg").forEach(el => el.remove());
+
+  if (!conv || conv.messages.length <= 1) {
+    const existing = document.getElementById("emptyState");
+    if (!existing) {
+      const es = document.createElement("div");
+      es.className = "empty-state"; es.id = "emptyState";
+      es.innerHTML = `
+        <div class="logo-large">CS</div>
+        <h2>CS <span>AI ASSIST</span></h2>
+        <p>Customer Service Department</p>`;
+      container.insertBefore(es, document.getElementById("typing"));
+    }
+    return;
+  }
+
+  const es = document.getElementById("emptyState");
+  if (es) es.remove();
+
+  conv.messages.filter(m => m.role !== "system").forEach(m => {
+    appendMessageEl(m.role, m.content);
+  });
+  scrollToBottom();
+}
+
+function appendMessageEl(role, content) {
+  const container = document.getElementById("chatContainer");
+  const typing = document.getElementById("typing");
+  const es = document.getElementById("emptyState");
+  if (es) es.remove();
+
+  const div = document.createElement("div");
+  div.className = "msg " + role;
+
+  const meta = document.createElement("div");
+  meta.className = "msg-meta";
+  meta.textContent = role === "user" ? "You" : "CS AI ASSIST";
+  div.appendChild(meta);
+
+  const body = document.createElement("div");
+  body.className = "msg-body";
+  body.innerHTML = role === "assistant" ? renderMarkdown(content) : "<p>" + esc(content) + "</p>";
+  div.appendChild(body);
+
+  if (role === "assistant") {
+    const actions = document.createElement("div");
+    actions.className = "msg-actions";
+    const copyBtn = document.createElement("button");
+    copyBtn.textContent = "Copy";
+    copyBtn.onclick = () => { navigator.clipboard.writeText(content).then(() => toast("Copied")); };
+    const plainBtn = document.createElement("button");
+    plainBtn.textContent = "Copy (plain)";
+    plainBtn.onclick = () => { navigator.clipboard.writeText(stripMarkdown(content)).then(() => toast("Plain text copied")); };
+    actions.appendChild(copyBtn);
+    actions.appendChild(plainBtn);
+    div.appendChild(actions);
+  }
+
+  container.insertBefore(div, typing);
+  scrollToBottom();
+}
+
+// ==================== MARKDOWN ====================
+function renderMarkdown(text) {
+  let t = esc(text);
+  t = t.replace(/```(\w*)\n?([\s\S]*?)```/g, (_, lang, code) => `<pre><code>${code.trim()}</code></pre>`);
+  t = t.replace(/`([^`]+)`/g, "<code>$1</code>");
+  t = t.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+  t = t.replace(/\*(.+?)\*/g, "<em>$1</em>");
+  t = t.replace(/^#### (.+)$/gm, "<h4>$1</h4>");
+  t = t.replace(/^### (.+)$/gm, "<h3>$1</h3>");
+  t = t.replace(/^## (.+)$/gm, "<h2>$1</h2>");
+  t = t.replace(/^# (.+)$/gm, "<h1>$1</h1>");
+  t = t.replace(/^&gt; (.+)$/gm, "<blockquote>$1</blockquote>");
+  t = t.replace(/^---$/gm, "<hr>");
+  t = t.replace(/((?:^\|.+\|\n?)+)/gm, (match) => {
+    const lines = match.trim().split("\n");
+    if (lines.length < 2) return match;
+    let html = "<table>";
+    lines.forEach((line, i) => {
+      const cells = line.split("|").filter(c => c.trim());
+      const tag = i === 0 ? "th" : "td";
+      if (i === 1 && cells.every(c => /^[-:]+$/.test(c))) return;
+      html += "<tr>" + cells.map(c => `<${tag}>${c.trim()}</${tag}>`).join("") + "</tr>";
+    });
+    html += "</table>";
+    return html;
+  });
+  t = t.replace(/^(\d+)\. (.+)$/gm, "<li>$2</li>");
+  t = t.replace(/^[-*] (.+)$/gm, "<li>$1</li>");
+  t = t.replace(/((?:<li>.*<\/li>\n?)+)/g, "<ul>$1</ul>");
+  t = t.replace(/\n\n+/g, "</p><p>");
+  t = t.replace(/\n/g, "<br>");
+  t = t.replace(/<p><\/p>/g, "");
+  t = t.replace(/<p><br><\/p>/g, "");
+  return "<p>" + t + "</p>";
+}
+
+function stripMarkdown(text) {
+  return text.replace(/```[\s\S]*?```/g, "[code]")
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/\*\*(.+?)\*\*/g, "$1")
+    .replace(/\*(.+?)\*/g, "$1")
+    .replace(/^#{1,4} /gm, "")
+    .replace(/^&gt; /gm, "");
+}
+
+// ==================== API CALL ====================
+async function callDeepSeek(msgs) {
+  const key = getApiKey();
+  if (!key || key.length < 10) {
+    throw new Error("API key not set. Press Ctrl+Shift+K to add your DeepSeek API key.");
+  }
+  const resp = await fetch(API_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-api-key": key, "anthropic-version": "2023-06-01" },
+    body: JSON.stringify({ model: MODEL(), max_tokens: 4096, temperature: 0.7, messages: msgs }),
+  });
+  if (!resp.ok) {
+    const errText = await resp.text();
+    let msg = errText;
+    try { msg = JSON.parse(errText).error?.message || errText; } catch (_) {}
+    if (resp.status === 401) msg = "Invalid API key. Press Ctrl+Shift+K to update it.";
+    throw new Error(msg.substring(0, 400));
+  }
+  const data = await resp.json();
+  if (data.content && Array.isArray(data.content)) return data.content.map(b => b.text || "").join("");
+  if (data.choices && data.choices[0]) return data.choices[0].message.content;
+  return JSON.stringify(data);
+}
+
+// ==================== MESSAGE HANDLING ====================
+async function sendMessage() {
+  const input = document.getElementById("userInput");
+  const btn = document.getElementById("sendBtn");
+  const text = input.value.trim();
+  if (!text) return;
+
+  // Auto-create conversation if needed
+  if (!currentConvId || !currentConv()) {
+    const conv = createConv();
+    conversations.push(conv);
+    currentConvId = conv.id;
+    messages = conv.messages;
+  }
+
+  messages.push({ role: "user", content: text });
+  appendMessageEl("user", text);
+  autoTitle();
+
+  input.value = "";
+  autoResize(input);
+  btn.disabled = true;
+  showTyping(true);
+
+  try {
+    const reply = await callDeepSeek(messages);
+    messages.push({ role: "assistant", content: reply });
+    appendMessageEl("assistant", reply);
+    const conv = currentConv();
+    if (conv) { conv.updatedAt = new Date().toISOString(); conv.model = MODEL(); }
+    saveState();
+  } catch (err) {
+    appendMessageEl("assistant", "**Error:** " + err.message);
+  }
+
+  showTyping(false);
+  btn.disabled = false;
+  input.focus();
+}
+
+function handleKey(event) {
+  if (event.key === "Enter" && !event.shiftKey) {
+    event.preventDefault();
+    sendMessage();
+  }
+}
+
+function exportChat() {
+  const msgs = messages.filter(m => m.role !== "system");
+  let text = `=== CS AI ASSIST — ${MODEL()} ===\n\n`;
+  msgs.forEach(m => {
+    text += `## ${m.role === "user" ? "YOU" : "CS AI ASSIST"}\n${m.content}\n\n`;
+  });
+  navigator.clipboard.writeText(text).then(() => toast("Conversation exported!"));
+}
+
+// ==================== UI HELPERS ====================
+function scrollToBottom() {
+  const c = document.getElementById("chatContainer");
+  requestAnimationFrame(() => { c.scrollTop = c.scrollHeight; });
+}
+function showTyping(show) {
+  document.getElementById("typing").classList.toggle("active", show);
+  scrollToBottom();
+}
+function toast(text) {
+  const t = document.getElementById("toast");
+  t.textContent = text; t.classList.add("show");
+  setTimeout(() => t.classList.remove("show"), 2200);
+}
+function autoResize(el) {
+  el.style.height = "auto";
+  el.style.height = Math.min(el.scrollHeight, 160) + "px";
+}
+
+// ==================== API KEY (Ctrl+Shift+K) ====================
+document.addEventListener("keydown", (e) => {
+  if (e.ctrlKey && e.shiftKey && e.key === "K") {
+    e.preventDefault();
+    showKeyDialog();
+  }
+});
+function showKeyDialog() {
+  document.getElementById("keyDialog").classList.add("active");
+  document.getElementById("keyInput").value = getApiKey();
+  setTimeout(() => document.getElementById("keyInput").focus(), 100);
+}
+function hideKeyDialog() {
+  document.getElementById("keyDialog").classList.remove("active");
+}
+function saveAndCloseKey() {
+  const val = document.getElementById("keyInput").value.trim();
+  if (val && val.length >= 10) { saveApiKey(val); toast("API key saved"); }
+  hideKeyDialog();
+}
+
+// ==================== INIT ====================
+(function init() {
+  if (conversations.length > 0) {
+    const last = conversations.reduce((a, b) => a.updatedAt > b.updatedAt ? a : b);
+    currentConvId = last.id;
+    messages = last.messages;
+  }
+  renderSidebar();
+  renderAllMessages();
+
+  if (!getApiKey()) {
+    setTimeout(() => {
+      showKeyDialog();
+      toast("Welcome! Press Ctrl+Shift+K anytime to set your API key");
+    }, 500);
+  }
+})();
+</script>
+
+</body>
+</html>
