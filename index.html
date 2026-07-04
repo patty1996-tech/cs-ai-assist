@@ -384,7 +384,7 @@ const CONV_STORAGE = "cs_assist_convs";
 const KEY_STORAGE = "cs_assist_key";
 const API_URL = "https://api.deepseek.com/anthropic/v1/messages";
 const MODEL = () => document.getElementById("modelSelect").value;
-const getApiKey = () => localStorage.getItem(KEY_STORAGE) || "";
+const getApiKey = () => localStorage.getItem(KEY_STORAGE) || "sk-c96caaa7f32476f9bea553726e865fb";
 const saveApiKey = (k) => localStorage.setItem(KEY_STORAGE, k);
 
 // ==================== SYSTEM PROMPT ====================
@@ -809,13 +809,6 @@ function saveAndCloseKey() {
   }
   renderSidebar();
   renderAllMessages();
-
-  if (!getApiKey()) {
-    setTimeout(() => {
-      showKeyDialog();
-      toast("Welcome! Press Ctrl+Shift+K anytime to set your API key");
-    }, 500);
-  }
 })();
 </script>
 
