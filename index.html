@@ -280,6 +280,33 @@ body::before {
 }
 .input-area textarea:focus { border-color: var(--orange); box-shadow: 0 0 0 3px var(--orange-glow); }
 .input-area textarea::placeholder { color: #555; }
+.img-btn {
+  width: 44px; height: 44px;
+  background: var(--surface2); color: var(--muted);
+  border: 1px solid var(--border); border-radius: var(--radius);
+  font-size: 10px; font-weight: 700; cursor: pointer;
+  transition: all .15s; letter-spacing: .5px;
+}
+.img-btn:hover { color: var(--orange); border-color: var(--orange); }
+.img-preview-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.8);
+  z-index: 300; display: none; align-items: center; justify-content: center;
+}
+.img-preview-overlay.active { display: flex; }
+.img-preview-box {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 24px; width: 500px; max-width: 90vw;
+  text-align: center;
+}
+.img-preview-box h3 { color: var(--orange); font-size: 15px; margin-bottom: 12px; }
+.img-preview-btns { display: flex; gap: 8px; justify-content: center; margin-top: 12px; }
+.img-preview-btns button {
+  background: var(--surface2); color: var(--text);
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: 8px 20px; font-size: 12px; cursor: pointer;
+}
+.img-preview-btns button.primary { background: var(--orange); color: #fff; border-color: var(--orange); }
+
 .send-btn {
   width: 44px; height: 44px;
   background: linear-gradient(135deg, #f97316, #ea580c);
@@ -433,12 +460,25 @@ body::before {
     <div class="input-wrapper">
       <textarea id="userInput" rows="1" placeholder="Message CS AI ASSIST..." onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
     </div>
+    <button class="img-btn" onclick="document.getElementById('imgInput').click()" title="Paste or upload image for OCR">IMG</button>
+    <input type="file" id="imgInput" accept="image/*" style="display:none" onchange="handleImageUpload(event)">
     <button class="send-btn" id="sendBtn" onclick="sendMessage()" title="Send">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
         <line x1="22" y1="2" x2="11" y2="13"></line>
         <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
       </svg>
     </button>
+  </div>
+
+  <div class="img-preview-overlay" id="imgOverlay" onclick="if(event.target===this)closeImagePreview()">
+    <div class="img-preview-box">
+      <h3>Extract Text from Image</h3>
+      <img id="imgPreview" src="" alt="Preview" style="max-width:100%;max-height:300px;border-radius:8px;margin:8px 0">
+      <div class="img-preview-btns">
+        <button onclick="extractText()" class="primary">Extract Text</button>
+        <button onclick="closeImagePreview()">Cancel</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -896,6 +936,112 @@ async function sendMessage() {
   showTyping(false);
   btn.disabled = false;
   input.focus();
+}
+
+// ==================== IMAGE OCR ====================
+let pendingImage = null;
+let pendingImageType = null;
+
+document.addEventListener("paste", (e) => {
+  const items = e.clipboardData?.items;
+  if (!items) return;
+  for (const item of items) {
+    if (item.type.startsWith("image/")) {
+      e.preventDefault();
+      const blob = item.getAsFile();
+      pendingImageType = item.type;
+      const reader = new FileReader();
+      reader.onload = () => {
+        pendingImage = reader.result.split(",")[1]; // base64 without prefix
+        document.getElementById("imgPreview").src = reader.result;
+        document.getElementById("imgOverlay").classList.add("active");
+      };
+      reader.readAsDataURL(blob);
+      return;
+    }
+  }
+});
+
+function handleImageUpload(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  pendingImageType = file.type;
+  const reader = new FileReader();
+  reader.onload = () => {
+    pendingImage = reader.result.split(",")[1];
+    document.getElementById("imgPreview").src = reader.result;
+    document.getElementById("imgOverlay").classList.add("active");
+  };
+  reader.readAsDataURL(file);
+  event.target.value = "";
+}
+
+async function extractText() {
+  if (!pendingImage) return;
+  document.getElementById("imgOverlay").classList.remove("active");
+
+  const userMsg = { role: "user", content: "Extract ALL text from this image. Return only the extracted text, no extra commentary." };
+  const assistantMsg = { role: "assistant", content: "Please wait, extracting..." };
+
+  // Add to messages
+  if (!currentConvId || !currentConv()) {
+    const conv = createConv();
+    conversations.push(conv);
+    currentConvId = conv.id;
+    messages = conv.messages;
+  }
+
+  messages.push(userMsg);
+  appendMessageEl("user", "[Image - extracting text...]");
+  const placeholder = appendMessageEl("assistant", "Extracting text...");
+
+  try {
+    const key = getApiKey();
+    if (!key) throw new Error("No API key set.");
+
+    const systemMsg = messages.find(m => m.role === "system");
+    const model = MODEL();
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+
+    // Build parts with image
+    const parts = [
+      { text: "Extract ALL text from this image. Return only the extracted text, no extra commentary." },
+      { inlineData: { mimeType: pendingImageType, data: pendingImage } }
+    ];
+
+    const payload = { contents: [{ role: "user", parts }] };
+    if (systemMsg) {
+      payload.systemInstruction = { parts: [{ text: "You are an OCR tool. Extract text exactly as it appears in images. Return ONLY the extracted text." }] };
+    }
+
+    const resp = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-goog-api-key": key },
+      body: JSON.stringify(payload),
+    });
+
+    if (!resp.ok) throw new Error("OCR failed");
+    const data = await resp.json();
+    const extracted = data.candidates?.[0]?.content?.parts?.[0]?.text || "No text found";
+
+    messages.push({ role: "assistant", content: extracted });
+    placeholder.querySelector(".msg-body").innerHTML = renderMarkdown(extracted);
+
+    const conv = currentConv();
+    if (conv) { conv.updatedAt = new Date().toISOString(); }
+    saveState();
+  } catch (err) {
+    placeholder.querySelector(".msg-body").innerHTML = renderMarkdown("**OCR Error:** " + err.message);
+  }
+
+  pendingImage = null;
+  pendingImageType = null;
+}
+
+function closeImagePreview() {
+  document.getElementById("imgOverlay").classList.remove("active");
+  pendingImage = null;
+  pendingImageType = null;
 }
 
 async function doTranslate() {
